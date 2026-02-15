@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from ai_agent import ask_data_agent
+from dotenv import load_dotenv
 import awswrangler as wr
 import plotly.express as px
 import plotly.graph_objects as go
@@ -32,9 +33,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 boto3.setup_default_session(region_name="us-east-2")
-DATABASE = "food_security_db"
-GRAPHQL_URL = "https://r77dovetevbmboazf6thr6bdeu.appsync-api.us-east-2.amazonaws.com/graphql" # UPDATE THIS
-API_KEY = "da2-ycnw6aoj75a7dprghej2c2r3ie" 
+load_dotenv() 
+
+DATABASE = os.environ.get('DATABASE', 'food_security_db') 
+GRAPHQL_URL = os.environ.get('GRAPHQL_URL', '') 
+API_KEY = os.environ.get('API_KEY', '') 
 
 @st.cache_data
 def fetch_global_snapshot(year):
@@ -126,7 +129,7 @@ def fetch_dossier(iso3):
 
 # --- 3. NAVIGATION BAR ---
 with st.sidebar:
-       st.title("Agri-Intel Dashboard","https://cdn-icons-png.flaticon.com/512/814/814587.png")
+       st.title("Agri-Intel Dashboard")
        st.caption(f"Connected to: {DATABASE}")
        year_select = st.slider("Monitoring Year", 2015, 2023, 2022)
        selected_page = option_menu(
