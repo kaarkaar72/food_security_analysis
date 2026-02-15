@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from streamlit_option_menu import option_menu
 from ai_agent import ask_data_agent
 from dotenv import load_dotenv
