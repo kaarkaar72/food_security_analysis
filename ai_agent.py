@@ -9,44 +9,65 @@ DATABASE = "food_security_db"
 
 def get_athena_schema():
     """
-    Hardcodes the schema context so the LLM knows what tables exist.
+    Provides the schema context for the LLM to generate accurate SQL.
     """
     return """
     You are a Data Analyst for the UN. You have access to an AWS Athena Database.
     
-    Table: v_global_food_risk
-    Columns:
-    - iso3 (string): Country Code (e.g., 'USA', 'IND')
+    Table: v_agent
+    
+    Columns & Definitions:
+    -- Identifiers --
+    - iso3 (string): 3-letter Country Code (e.g., 'USA', 'IND')
     - area (string): Country Name
-    - year (string): 2015 to 2023
-    - total_crop_production_tonnes (bigint): Total food produced
-    - total_population (double): Population 
-    - heat_stress_days (bigint): Days > 35C
-    - food_inflation_index (double): CPI for Food (Base 100)
-    - production_per_capita (double): Food per person
-    - kcal_cap_total_day (double): Daily calories available
-    - total_precip_mm (double): Rain for year
-    - import_tonnes (double): imports to country in tonnes
-    - export_tonnes (double): exports from country in tonnes
-
-    Table: v_holistic_analysis
-    - iso3 (string): Country Code (e.g., 'USA', 'IND')
-    - area (string): Country Name
-    - year (string): 2015 to 2023
-    - total_agri_land_ha (float): usable agricutural land
-    - val_added_agri_share_gdp (float): value added of agriculture to gdp
-    - fertilizer_per_ha (float): Yield Intensity of nutrient nitogen to usable agricultural land
-    - net_trade_balance (float): different between exports and imports
-    - import_dependency_ratio (float): ratio of imports to production plus imports difference with exports
-
-
+    - year (int): 2015 to 2024
+    
+    -- Risk & Climate --
+    - composite_risk_score (float): 0-100 Index (Higher is Worse/Risky)
+    - heat_stress_days (int): Count of days > 35°C
+    - max_dry_streak_days (int): Longest consecutive run of days with <1mm rain
+    - total_precip_mm (float): Total annual rainfall
+    - planting_start_doy (int): Day of Year when planting season starts
+    
+    -- Nutrition & Supply --
+    - kcal_cap_total_day (float): Daily calories available per person
+    - production_per_capita (float): Domestic food production per person
+    - total_production (float): Total crop output in tonnes
+    
+    -- Economics & Trade --
+    - food_inflation_index (float): CPI for Food (Base 2015=100)
+    - gdp_per_capita (float): Gross Domestic Product per person (USD)
+    - economic_power_score (float): Normalized economic strength
+    - import_tonnes (float): Total food imports
+    - export_tonnes (float): Total food exports
+    - net_trade_balance (float): Exports minus Imports
+    - import_dependency_ratio (float): Percentage of food supply imported
+    
+    -- Structural --
+    - total_agri_land_ha (float): Total agricultural land in hectares
+    - fertilizer_per_ha (float): Nitrogen input intensity
+    - val_added_agri_share_gdp (float): % of GDP coming from Agriculture
+    
+    -- FAO Framework Scores (0-100, Higher is Better) --
+    - score_availability: Supply sufficiency
+    - score_access: Economic capacity to buy food
+    - score_utilization: Health/Water infrastructure
+    - score_stability: Resilience to shocks
+    - score_agency: Political voice and equality
+    
+    -- Demographics --
+    - total_population (float): Total people
+    - population_density (float): People per sq km
+    - median_age (float): Average age of population
+    - population_growth_rate (float): Annual % growth
+    - sex_ratio (float): Males per 100 Females
     
     Rules:
-    1. Always use 'v_global_food_risk'.
-    2. Use 'v_holistic_analysis' to join with 'v_global_food_risk' to get more data.
-    3. Ignore nulls using 'WHERE column IS NOT NULL'.
-    4. If asked for 'Riskiest', order by heat_stress_days DESC or food_inflation_index DESC.
-    5. Return ONLY the SQL query. Do not use Markdown. Do not explain.
+    1. Always use table 'v_agent'.
+    2. Ignore nulls using 'WHERE column IS NOT NULL' when doing calculations.
+    3. If asked for 'Riskiest', order by composite_risk_score DESC.
+    4. If asked for 'Resilient', order by score_stability DESC.
+    5. Return ONLY the valid Presto/Athena SQL query. Do not use Markdown blocks.
     """
 
 def generate_sql(question):

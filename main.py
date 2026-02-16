@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 from streamlit_option_menu import option_menu
+from plotly.subplots import make_subplots 
 from ai_agent import ask_data_agent
 from dotenv import load_dotenv
 import awswrangler as wr
@@ -48,12 +49,22 @@ def fetch_global_snapshot(year):
        getGlobalMapData(year: $year) {
               iso3
               area
+              total_population
               composite_risk_score
               resilience_index
-              total_population
               production_per_capita
               heat_stress_days
               food_inflation_index
+              score_availability
+              score_access
+              score_utilization
+              score_stability
+              total_population
+              population_density
+              population_growth_rate
+              total_production
+              net_trade_balance
+              import_dependency_ratio
        }
     }
     """
@@ -127,6 +138,7 @@ def fetch_dossier(iso3):
                             population_density
                             median_age
                             sex_ratio
+                            population_growth_rate
                      }
               }
        }
@@ -144,16 +156,15 @@ def fetch_dossier(iso3):
 # --- 3. NAVIGATION BAR ---
 with st.sidebar:
        st.title("Agri-Intel Dashboard")
-       st.caption(f"Connected to: {DATABASE}")
-       year_select = st.slider("Monitoring Year", 2015, 2023, 2022)
        selected_page = option_menu(
               menu_title=None,
               options=["Global View", "Country Diagonstics", "FAO Framework", "AI Analyst", "System Architecture"],
-              icons=["globe", "file-earmark-text", "cpu","cloud-fill"],
+              icons=["globe", "file-earmark-text", "house", "cpu","gear"],
               default_index=0,
        )
-       st.markdown("---")  
-       # METHODOLOGY LEGEND
+       st.markdown("---")
+       st.caption(f"Connected to: {DATABASE}")
+       st.markdown("---")
        with st.expander("ℹ️ Metric Definitions (Read Me)"):
               st.markdown("""
               ### 🛡️ Composite Risk Score (0-100)
@@ -177,20 +188,20 @@ with st.sidebar:
               - **Base Year:** 2015 = 100.
               - **> 150:** Hyper-inflation territory (50% price hike since 2015).
               """)
-
+ 
 countries_list = fetch_all_countries(2023)  
 # ==================================================
 # PAGE 1: GLOBAL COMMAND CENTER
 # ==================================================
 if selected_page == "Global View":
        # 1. Header & Context
-       st.title(f"🌍 Global Risk Monitor ({year_select})")
+       st.title(f"🌍 Global Risk Monitor")
        st.markdown("Real-time assessment of food security threats across **supply chains**, **climate**, and **economics**.")
-
+       year_select = st.slider("Monitoring Year", 2015, 2023, 2022)
+       st.divider()
        # Load Data
        df = fetch_global_snapshot(year_select)
        df.fillna(0, inplace=True) # Safety first
-
        # 2. The "Hero" KPI Section (Grouped for Impact)
        st.markdown("### 🚦 System Status")
 
@@ -254,32 +265,29 @@ if selected_page == "Global View":
        st.markdown("---")
 
        # 3. The "Hero" Map (Full Width)
-       c_map_ctrl, c_map_view = st.columns([1, 4])
-
-       with c_map_ctrl:
-              st.markdown("#### 🗺️ Map Controls")
-              metric = st.radio(
-              "Visualize Metric:", 
-              ['composite_risk_score', 'resilience_index', 'heat_stress_days', 'food_inflation_index'],
-              format_func=lambda x: x.replace('_', ' ').title()
-              )
-              st.info("Hover over countries for detailed breakdown.")
-
-       with c_map_view:
-              # Dynamic Color Scale
-              scale = "RdYlGn" if metric == "resilience_index" else "RdYlGn_r"
-              
-              fig_map = px.choropleth(
-              df, locations="iso3", color=metric,
-              hover_name="area", 
-              hover_data=['composite_risk_score', 'production_per_capita', 'heat_stress_days'],
-              color_continuous_scale=scale,
-              title=f"Global Distribution: {metric.replace('_', ' ').title()}",
-              height=600
-              )
-              fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, paper_bgcolor="rgba(0,0,0,0)")
-              fig_map.update_geos(showframe=False, showcoastlines=True, coastlinecolor="#333333", projection_type="natural earth")
-              st.plotly_chart(fig_map, use_container_width=True)
+       st.markdown("#### 🗺️ Map Controls")
+       metric = st.selectbox(
+       "Visualize Metric:", 
+       ['composite_risk_score', 'resilience_index', 'heat_stress_days', 'food_inflation_index','production_per_capita',
+              'score_availability', 'score_access', 'score_utilization', 'score_stability',
+              'population_density', 'population_growth_rate','total_population',
+              'total_production','net_trade_balance','import_dependency_ratio'],
+       format_func=lambda x: x.replace('_', ' ').title())
+       
+       # Dynamic Color Scale
+       scale = "RdYlGn" if metric == "resilience_index" else "RdYlGn_r"
+       
+       fig_map = px.choropleth(
+       df, locations="iso3", color=metric,
+       hover_name="area", 
+       hover_data=['composite_risk_score', 'production_per_capita', 'heat_stress_days'],
+       color_continuous_scale=scale,
+       title=f"Global Distribution: {metric.replace('_', ' ').title()}",
+       height=600
+       )
+       fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, paper_bgcolor="rgba(0,0,0,0)")
+       fig_map.update_geos(showframe=False, showcoastlines=True, coastlinecolor="#333333", projection_type="natural earth")
+       st.plotly_chart(fig_map, use_container_width=True)
 
        # 4. The "Deep Dive" Section (Two Columns)
        st.markdown("### 📉 Risk Analysis & Watchlist")
@@ -410,7 +418,7 @@ elif selected_page == "Country Diagonstics":
               # --- SECTION B: Z-SCORE DECOMPOSITION ---
               st.subheader("2️⃣ Shock Decomposition (Anomaly Detection)")
               
-              c1, c2 = st.columns([2, 1])
+              c1, c2 = st.columns([5 , 1])
               
               with c1:
                      # Helper to handle None values from API
@@ -463,50 +471,49 @@ elif selected_page == "Country Diagonstics":
                      - **Blue Bars:** Factors that are stable or improving.
                      """)
 
-                     st.divider()
-
-                     # --- SECTION C: STRUCTURAL HEALTH ---
-                     st.subheader("3️⃣ Structural Health Check")
-                     st.write("Is the infrastructure supporting resilience?")
-
-                     m1, m2, m3 = st.columns(3)
-
-                     # 1. Input Intensity
-                     with m1:
-                            fert = latest['supply']['fertilizer_per_ha']
-                            val = f"{fert:.1f} kg" if fert else "N/A"
-                            st.metric("Fertilizer / Hectare", val)
-                            if fert and fert < 15:
-                                   st.caption("⚠️ Low Input (Yield Gap Risk)")
-                            else:
-                                   st.caption("✅ Inputs Stable")
-
-                     # 2. Trade Position
-                     with m2:
-                            dep = latest['trade']['dependency_ratio']
-                            val = f"{dep*100:.1f}%" if dep is not None else "N/A"
-                            st.metric("Import Dependency", val)
-                            if dep and dep > 0.5:
-                                   st.caption("⚠️ Highly Vulnerable to Trade Wars")
-                            else:
-                                   st.caption("✅ Food Sovereign / Exporter")
-
-                     # 3. Economic Structure
-                     with m3:
-                            share = latest['economy']['agri_share_gdp']
-                            val = f"{share:.1f}%" if share else "N/A"
-                            st.metric("Agri share of GDP", val)
-                            if share and share > 25:
-                                   st.caption("⚠️ Economy relies heavily on rain")
-                            else:
-                                   st.caption("✅ Diversified Economy")
-
        else:
               st.warning("Data unavailable for this country in the selected year.")
 
+       st.divider()
+
+       # --- SECTION C: STRUCTURAL HEALTH ---
+       st.subheader("3️⃣ Structural Health Check")
+       st.write("Is the infrastructure supporting resilience?")
+
+       m1, m2, m3 = st.columns(3)
+
+       # 1. Input Intensity
+       with m1:
+              fert = latest['supply']['fertilizer_per_ha']
+              val = f"{fert:.1f} kg" if fert else "N/A"
+              st.metric("Fertilizer / Hectare", val)
+              if fert and fert < 15:
+                     st.caption("⚠️ Low Input (Yield Gap Risk)")
+              else:
+                     st.caption("✅ Inputs Stable")
+
+       # 2. Trade Position
+       with m2:
+              dep = latest['trade']['dependency_ratio']
+              val = f"{dep*100:.1f}%" if dep is not None else "N/A"
+              st.metric("Import Dependency", val)
+              if dep and dep > 0.5:
+                     st.caption("⚠️ Highly Vulnerable to Trade Wars")
+              else:
+                     st.caption("✅ Food Sovereign / Exporter")
+
+       # 3. Economic Structure
+       with m3:
+              share = latest['economy']['agri_share_gdp']
+              val = f"{share:.1f}%" if share else "N/A"
+              st.metric("Agri share of GDP", val)
+              if share and share > 25:
+                     st.caption("⚠️ Economy relies heavily on rain")
+              else:
+                     st.caption("✅ Diversified Economy")
 
        st.markdown("---")
-       st.subheader("👥 Demographics: Labor & Land Pressure")
+       st.subheader("4️⃣ Demographics: Labor & Land Pressure")
        # hist_df = pd.json_normalize(dossier)
        latest = pd.DataFrame(dossier[1])
        demo = latest['demographics']
@@ -538,26 +545,34 @@ elif selected_page == "Country Diagonstics":
        # Simple heuristic: Density / Median Age
        # High Density + Young Pop = Extreme Pressure
        with c3:
-              if age and dens:
-                     pressure_score = dens / age
-                     st.metric("Resource Pressure Index", f"{pressure_score:.1f}")
-              if pressure_score > 20:
-                     st.error("🚨 **Critical Strain:** Young population crowded into small space.")
+              growth = demo['population_growth_rate']
+              if growth and dens:
+                     strain_velocity = dens * (growth / 100)
+                     st.metric("Strain Velocity", f"+{strain_velocity:.1f} ppl/km²/yr")     
+                     if strain_velocity > 10:
+                            st.error("🚨 **Critical Expansion:** Adding >10 people per km² annually. Infrastructure cannot keep up.")
+                     elif strain_velocity > 2:
+                            st.warning("⚠️ **High Pressure:** rapid densification.")
+                     elif strain_velocity < 0:
+                            st.info("📉 **De-Densification:** Population is shrinking relative to land.")
+                     else:
+                            st.success("✅ **Stable:** Manageable growth.")
+              else:
+                     st.metric("Strain Velocity", "N/A")
 
        st.divider()
         
 
-
-
        # --- SECTION D: TIMELINE OF EVENTS ---
-       st.subheader("4️⃣ Timeline of Instability")
-       st.write("Correlating shocks over time: Did Heat Stress cause the Production Drop?")
+       st.subheader("5️⃣ Timeline of Instability")
+       # st.write("Correlating shocks over time: Did Heat Stress cause the Production Drop?")
 
        
        if dossier:
               # hist_df = pd.DataFrame(dossier)
+              # dossier = dossier[dossier['year'] > 2014]
               hist_df = pd.json_normalize(dossier)
-              from plotly.subplots import make_subplots 
+              hist_df = hist_df[hist_df['year'] > 2014]
               # 2. Create Multi-Axis Chart
               fig_timeline = make_subplots(specs=[[{"secondary_y": True}]])
               # Area: Production (Background)
@@ -590,6 +605,16 @@ elif selected_page == "Country Diagonstics":
                      name="Food Price Index", 
                      mode='lines',
                      line=dict(color='#ff7f0e', width=2, dash='dot') # Orange
+                     ),
+                     secondary_y=True
+              )
+
+              fig_timeline.add_trace(
+                     go.Scatter(
+                     x=hist_df['year'], y=hist_df['demographics.total_population'], 
+                     name="Total Population", 
+                     mode='lines',
+                     line=dict(color='#1f77b4', width=2) # Blue
                      ),
                      secondary_y=True
               )
