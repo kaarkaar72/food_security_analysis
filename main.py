@@ -91,30 +91,43 @@ def fetch_dossier(iso3):
        query = """
        query getDossier($iso3: String!) {
               getCountryProfile(iso3: $iso3) {
-              area
-              year
-              risk {
-                     composite_score
-                     primary_crisis_driver
-                     climate_shock_z
-                     heat_stress_days
-              }
-              economy {
-                     resilience_index
-                     economic_shock_z
-                     agri_share_gdp
-                     inflation_index
-              }
-              supply {
-                     production_shock_z
-                     fertilizer_per_ha
-                     land_area_ha
-                     total_production_tonnes
-              }
-              trade {
-                     dependency_ratio
-                     net_trade_balance
-              }
+                     area
+                     year
+                     risk {
+                            composite_score
+                            primary_crisis_driver
+                            climate_shock_z
+                            heat_stress_days
+                     }
+                     economy {
+                            resilience_index
+                            economic_shock_z
+                            agri_share_gdp
+                            inflation_index
+                     }
+                     supply {
+                            production_shock_z
+                            fertilizer_per_ha
+                            land_area_ha
+                            total_production_tonnes
+                     }
+                     trade {
+                            dependency_ratio
+                            net_trade_balance
+                     }
+                     pillars {
+                            score_availability
+                            score_access
+                            score_utilization
+                            score_stability
+                            score_agency
+                     }
+                     demographics {
+                            total_population
+                            population_density
+                            median_age
+                            sex_ratio
+                     }
               }
        }
        """
@@ -135,7 +148,7 @@ with st.sidebar:
        year_select = st.slider("Monitoring Year", 2015, 2023, 2022)
        selected_page = option_menu(
               menu_title=None,
-              options=["Global View", "Country Diagonstics", "AI Analyst", "System Architecture"],
+              options=["Global View", "Country Diagonstics", "FAO Framework", "AI Analyst", "System Architecture"],
               icons=["globe", "file-earmark-text", "cpu","cloud-fill"],
               default_index=0,
        )
@@ -371,6 +384,7 @@ elif selected_page == "Country Diagonstics":
        # 2. Fetch Data (Single API Call)
        with st.spinner(f"Retrieving Intelligence Dossier for {target_country}..."):
               dossier = fetch_dossier(target_iso)
+       
        if dossier:
               # --- SECTION A: THE CRISIS DRIVER ---
               latest = pd.DataFrame(dossier[1])
@@ -490,8 +504,51 @@ elif selected_page == "Country Diagonstics":
        else:
               st.warning("Data unavailable for this country in the selected year.")
 
+
+       st.markdown("---")
+       st.subheader("👥 Demographics: Labor & Land Pressure")
+       # hist_df = pd.json_normalize(dossier)
+       latest = pd.DataFrame(dossier[1])
+       demo = latest['demographics']
+       c1, c2, c3 = st.columns(3)
+
+       # 1. MEDIAN AGE (Labor Force Indicator)
+       with c1:
+              age = demo['median_age']
+              st.metric("Median Age", f"{age:.1f} years")
+              
+              if age < 20:
+                     st.info("👶 **Youth Bulge:** Rapidly growing caloric demand. Risk of instability if jobs aren't created.")
+              elif age > 40:
+                     st.warning("👴 **Aging Workforce:** Labor shortage in agriculture likely. Mechanization required.")
+              else:
+                     st.success("✅ **Prime Workforce:** Optimal labor availability.")
+
+       # 2. POPULATION DENSITY (Land Pressure Indicator)
+       with c2:
+              dens = demo['population_density']
+              st.metric("Pop Density", f"{dens:.0f} / km²")
+              
+              if dens > 500:
+                     st.warning("🏙️ **High Density:** Cannot rely on land expansion. Must rely on High-Yield Tech or Imports.")
+              elif dens < 50:
+                     st.success("🚜 **Low Density:** Potential for agricultural land expansion.")
+
+       # 3. MALTHUSIAN INDEX (Calculated)
+       # Simple heuristic: Density / Median Age
+       # High Density + Young Pop = Extreme Pressure
+       with c3:
+              if age and dens:
+                     pressure_score = dens / age
+                     st.metric("Resource Pressure Index", f"{pressure_score:.1f}")
+              if pressure_score > 20:
+                     st.error("🚨 **Critical Strain:** Young population crowded into small space.")
+
        st.divider()
         
+
+
+
        # --- SECTION D: TIMELINE OF EVENTS ---
        st.subheader("4️⃣ Timeline of Instability")
        st.write("Correlating shocks over time: Did Heat Stress cause the Production Drop?")
@@ -555,6 +612,82 @@ elif selected_page == "Country Diagonstics":
               
        else:
               st.warning("Historical data unavailable via API.")
+
+elif selected_page == "FAO Framework":
+       st.header("📊 FAO Framework Explorer")
+       st.caption("Visualizing the 5 Pillars of Food Security: Availability, Access, Utilization, Stability, and Agency.")
+       
+       # Placeholder content for now
+       st.markdown("""
+       This section will break down the complex FAO Food Security Framework into interactive visualizations.
+       - **Availability:** Domestic production, imports, stock levels.
+       - **Access:** Economic and physical access to food (poverty rates, market access).
+       - **Utilization:** Nutritional quality, food safety, dietary diversity.
+       - **Stability:** Variability of supply and access over time (shocks).
+       - **Agency:** Empowerment and decision-making capacity of individuals/communities.
+       
+       Each pillar will have its own set of KPIs and charts to diagnose specific vulnerabilities. Stay tuned for the full rollout in the next iteration!
+       """)
+       target_country = st.selectbox("Select Target Country", countries_list['area'].unique(), index=0)
+       target_iso = countries_list[countries_list['area'] == target_country]['iso3'].iloc[0]
+
+       # 2. Fetch Data (Single API Call)
+       with st.spinner(f"Retrieving Intelligence Dossier for {target_country}..."):
+              dossier = fetch_dossier(target_iso)
+       
+
+       dossier = pd.json_normalize(dossier)
+       dossier = dossier[dossier['year'] > 2014]
+       latest = dossier.iloc[1]
+       # st.write(dossier["pillars.score_access"][0]))
+       c1, c2, c3, c4, c5 = st.columns(5)
+    
+       def render_pillar(col, title, score, icon):
+              color = "green" if int(score) > 70 else "orange" if int(score) > 40 else "red"
+              col.markdown(f"""
+              <div style="padding:10px; border-radius:10px; border:1px solid #ddd; text-align:center;">
+              <h1>{icon}</h1>
+              <h4>{title}</h4>
+              <h2 style="color:{color};">{score}/100</h2>
+              </div>
+              """, unsafe_allow_html=True)
+       
+       render_pillar(c1, "Availability", latest['pillars.score_availability'], "🚜")
+       render_pillar(c2, "Access", latest['pillars.score_access'], "💰")
+       render_pillar(c3, "Utilization", latest['pillars.score_utilization'], "💧")
+       render_pillar(c4, "Stability", latest['pillars.score_stability'], "⚖️")
+       render_pillar(c5, "Agency", latest['pillars.score_agency'], "🗳️") # New Icon
+       st.markdown("###")
+
+       # --- 2. THE DIAGNOSIS ---
+       # Logic to find the weakest link
+       scores = {
+              "Availability (Supply Chain)": latest['pillars.score_availability'],
+              "Access (Economics)": latest['pillars.score_access'],
+              "Utilization (Health/Water)": latest['pillars.score_utilization'],
+              "Stability (Climate/Conflict)": latest['pillars.score_stability'],
+              "Agency (Governance)": latest['pillars.score_agency']
+       }
+       weakest_link = min(scores, key=scores.get)
+
+       st.error(f"🚨 **Critical Failure Point:** {weakest_link}")
+
+       if "Availability" in weakest_link:
+              st.write("👉 This country cannot produce or import enough food. Focus on **Yields & Trade Deals**.")
+       elif "Access" in weakest_link:
+              st.write("👉 Food exists, but people cannot afford it. Focus on **Inflation Control & Infrastructure**.")
+       elif "Utilization" in weakest_link:
+              st.write("👉 People are eating, but getting sick or stunted. Focus on **Clean Water & Sanitation**.")
+       elif "Stability" in weakest_link:
+              st.write("👉 The system collapses periodically due to shocks. Focus on **Climate Adaptation & Peace**.")
+       elif "Agency" in weakest_link:
+              st.write("👉 People lack the power to change their situation. Focus on **Governance & Social Safety Nets**.")
+
+       fig_trend = px.line(dossier, x='year', y=['pillars.score_stability', 'pillars.score_access','pillars.score_agency','pillars.score_utilization','pillars.score_availability'], title="Stability vs Access vs Agency over Time")
+       st.plotly_chart(fig_trend, use_container_width=True)
+       
+
+
 elif selected_page == 'AI Analyst':
        st.header("🤖 Agri-Intel AI Assistant")   
        st.caption("Powered by AWS Bedrock (Claude 3) & Athena")
@@ -608,6 +741,7 @@ elif selected_page == "System Architecture":
               subgraph cluster_ingest {
               label = "Ingestion Layer";
               style=dashed;
+              WPP [label="UN WPP API"];
               FAO [label="FAOSTAT API"];
               NASA [label="NASA POWER API"];
               WB [label="World Bank API"];
